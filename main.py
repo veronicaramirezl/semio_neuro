@@ -5,6 +5,7 @@ import os
 st.set_page_config(page_title="Repaso de Semiología GRUNECO", page_icon="🧠", layout="centered")
 
 # --- SECCIÓN DE INTRODUCCIÓN Y BIENVENIDA ---
+# Restauración exacta del logotipo solicitado
 logo_path = "/workspaces/semio_neuro/GRUNECO_CPT_T.png"
 if os.path.exists(logo_path):
     st.image(logo_path, width=250)
@@ -104,7 +105,7 @@ DATA_RUBRICA = {
             "Inspecciona el rostro para identificar alteraciones (ptosis palpebral, alineación ocular primaria)",
             "Se posiciona adecuadamente frente al paciente",
             "Realiza cover-uncover test",
-            "Evalua la presence o absence de nistagmo (si es evocado o no)",
+            "Evalua la presencia o ausencia de nistagmo (si es evocado o no)",
             "Da la instrucción de forma adecuada al paciente",
             "El desplazamiento del indicador es adecuado (Se desplaza en forma de H o en forma de asterísco)",
             "Evalua ambos ojos al mismo tiempo (movimientos conjugados)",
@@ -547,16 +548,13 @@ DATA_RUBRICA = {
     }
 }
 
-# --- PERSISTENCIA BASADA EN URL PARAMS NATIVOS ---
-# Recuperar parámetros existentes en la URL del navegador actual
+# --- PARÁMETROS DE LA URL DE NAVEGACIÓN ---
 query_params_actuales = st.query_params
 
-# Inicializar o recuperar el estado de cada ítem basado en la URL
+# Sincronizar el estado inicial
 for titulo_seccion, datos in DATA_RUBRICA.items():
     for item in datos["items"]:
-        key_id = f"r_{hash(titulo_seccion + item) & 0xffffffff}" # Genera un ID compacto y seguro para la URL
-        
-        # Si la URL ya tiene guardado el estado de este ítem, úsalo. Si no, inicializa en "No"
+        key_id = f"r_{hash(titulo_seccion + item) & 0xffffffff}"
         if key_id in query_params_actuales:
             valor_inicial = query_params_actuales[key_id]
         else:
@@ -565,7 +563,7 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
         if key_id not in st.session_state:
             st.session_state[key_id] = valor_inicial
 
-# --- LÓGICA DE RESETEO (LIMPIAR URL Y SESIÓN) ---
+# --- ACCIÓN DE BORRADO / RESETEO COMPLETO ---
 def ejecutar_reinicio():
     for key in list(st.session_state.keys()):
         if key.startswith("r_"):
@@ -581,7 +579,7 @@ st.markdown("---")
 puntos_totales_maximos = sum(bloque["max"] for bloque in DATA_RUBRICA.values())
 puntos_totales_logrados = 0
 
-# Renderizar secciones con persistencia URL reactiva
+# Renderizado estructurado e interactivo de los ítems
 for titulo_seccion, datos in DATA_RUBRICA.items():
     with st.container():
         st.subheader(f"📋 {titulo_seccion}")
@@ -594,7 +592,6 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
             with col_texto:
                 st.markdown(f"• {item}")
             with col_opciones:
-                # El componente lee directamente de session_state (el cual está sincronizado con la URL)
                 opcion = st.radio(
                     label=item,
                     options=["No", "Sí"],
@@ -603,20 +600,19 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
                     label_visibility="collapsed"
                 )
                 
-                # Sincronizar dinámicamente cualquier cambio de clic con la barra de navegación (URL Params)
+                # Guardar automáticamente la selección en la URL
                 st.query_params[key_id] = opcion
-                
                 if opcion == "Sí":
                     subtotal_seccion += 1
                     
-        # Control estricto de subtotales por bloque según rúbrica madre
+        # Calcular límites por sección según rúbrica original
         puntos_finales_seccion = min(subtotal_seccion, datos["max"])
         puntos_totales_logrados += puntos_finales_seccion
         
         st.markdown(f"**Ejecución técnica - Total realizados:** `{puntos_finales_seccion} / {datos['max']}`")
         st.markdown("---")
 
-# --- SECCIÓN DE RESULTADOS COMPUESTOS ---
+# --- PANEL DE CALIFICACIÓN COMPUESTA ---
 st.subheader("📊 Calificación Final Compuesta")
 
 nota_global = (puntos_totales_logrados / puntos_totales_maximos) * 5.0
