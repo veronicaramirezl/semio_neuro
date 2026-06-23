@@ -1,34 +1,8 @@
 import streamlit as st
 import os
 
-# Configuración de página estricta
+# Configuración estricta de la página
 st.set_page_config(page_title="Repaso de Semiología GRUNECO", page_icon="🧠", layout="centered")
-
-# --- INYECCIÓN DE SCRIPT PARA COOKIES / LOCALSTORAGE NATIVO ---
-# Este componente se encarga de guardar y leer los datos directamente del navegador
-def ejecutar_local_storage():
-    st.components.v1.html(
-        """
-        <script>
-        // Escuchar mensajes desde Streamlit para guardar datos
-        window.addEventListener('message', function(e) {
-            if (e.data.type === 'set') {
-                localStorage.setItem(e.data.key, e.data.value);
-            }
-        });
-        </script>
-        """,
-        height=0,
-    )
-
-ejecutar_local_storage()
-
-# Funciones auxiliares para simular el almacenamiento
-def set_item(key, value):
-    st.session_state[key] = value
-    # Enviar al localStorage del navegador mediante un truco nativo de JS si es necesario
-    # Para mantenerlo simple y síncrono, rely en st.experimental_set_query_params o session_state heredado es más seguro en entornos cerrados, 
-    # pero usaremos session_state persistido por el ciclo de vida de la app de Streamlit.
 
 # --- SECCIÓN DE INTRODUCCIÓN Y BIENVENIDA ---
 logo_path = "/workspaces/semio_neuro/GRUNECO_CPT_T.png"
@@ -46,7 +20,7 @@ st.markdown(
 )
 st.markdown("---")
 
-# Estructura monolítica y literal de la rúbrica
+# Estructura monolítica y literal de la rúbrica (Documento Madre)
 DATA_RUBRICA = {
     "PARES CRANEALES: I PAR (OLFATORIO) - INSPECCIÓN Y ESPECULOSCOPIA": {
         "max": 6,
@@ -130,7 +104,7 @@ DATA_RUBRICA = {
             "Inspecciona el rostro para identificar alteraciones (ptosis palpebral, alineación ocular primaria)",
             "Se posiciona adecuadamente frente al paciente",
             "Realiza cover-uncover test",
-            "Evalua la presencia o ausencia de nistagmo (si es evocado o no)",
+            "Evalua la presence o absence de nistagmo (si es evocado o no)",
             "Da la instrucción de forma adecuada al paciente",
             "El desplazamiento del indicador es adecuado (Se desplaza en forma de H o en forma de asterísco)",
             "Evalua ambos ojos al mismo tiempo (movimientos conjugados)",
@@ -290,7 +264,7 @@ DATA_RUBRICA = {
             "Evalúa Lado lateral (radial) del antebrazo, dedo pulgar e índice - C6 (Temperatura)",
             "Evalúa Dedo medio - C7 (Temperatura)",
             "Evalúa Lado medial (cubital) del antebrazo, dedo anular y meñique - C8 (Temperatura)",
-            "Evalúa Región medial and superior del antebrazo (cara interna/axila) - T1 (Temperatura)",
+            "Evalúa Región medial y superior del antebrazo (cara interna/axila) - T1 (Temperatura)",
             "Evalúa la discriminación térmica con dos referencias distintas (Parte goma y parte metálica del martillo)"
         ]
     },
@@ -573,23 +547,41 @@ DATA_RUBRICA = {
     }
 }
 
-# --- LÓGICA DE RESETEO ---
-def reiniciar_prueba():
-    for titulo_seccion, datos in DATA_RUBRICA.items():
-        for item in datos["items"]:
-            key_radio = f"radio_{titulo_seccion}_{item}"
-            st.session_state[key_radio] = "No"
+# --- PERSISTENCIA BASADA EN URL PARAMS NATIVOS ---
+# Recuperar parámetros existentes en la URL del navegador actual
+query_params_actuales = st.query_params
 
-st.markdown("### 🔄 Control de Progreso")
-if st.button("🗑️ Eliminar progreso / Resetear prueba", on_click=reiniciar_prueba):
-    st.info("La prueba ha sido reiniciada en esta sesión.")
+# Inicializar o recuperar el estado de cada ítem basado en la URL
+for titulo_seccion, datos in DATA_RUBRICA.items():
+    for item in datos["items"]:
+        key_id = f"r_{hash(titulo_seccion + item) & 0xffffffff}" # Genera un ID compacto y seguro para la URL
+        
+        # Si la URL ya tiene guardado el estado de este ítem, úsalo. Si no, inicializa en "No"
+        if key_id in query_params_actuales:
+            valor_inicial = query_params_actuales[key_id]
+        else:
+            valor_inicial = "No"
+            
+        if key_id not in st.session_state:
+            st.session_state[key_id] = valor_inicial
+
+# --- LÓGICA DE RESETEO (LIMPIAR URL Y SESIÓN) ---
+def ejecutar_reinicio():
+    for key in list(st.session_state.keys()):
+        if key.startswith("r_"):
+            st.session_state[key] = "No"
+    st.query_params.clear()
+
+st.markdown("### 🔄 Control de Progreso Permanente")
+if st.button("🗑️ Eliminar progreso / Resetear prueba", on_click=ejecutar_reinicio):
+    st.rerun()
 
 st.markdown("---")
 
 puntos_totales_maximos = sum(bloque["max"] for bloque in DATA_RUBRICA.values())
 puntos_totales_logrados = 0
 
-# Renderizar secciones con persistencia basada en el estado de sesión nativo de Streamlit
+# Renderizar secciones con persistencia URL reactiva
 for titulo_seccion, datos in DATA_RUBRICA.items():
     with st.container():
         st.subheader(f"📋 {titulo_seccion}")
@@ -597,25 +589,27 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
         
         for item in datos["items"]:
             col_texto, col_opciones = st.columns([0.75, 0.25])
-            key_radio = f"radio_{titulo_seccion}_{item}"
+            key_id = f"r_{hash(titulo_seccion + item) & 0xffffffff}"
             
-            if key_radio not in st.session_state:
-                st.session_state[key_radio] = "No"
-                
             with col_texto:
                 st.markdown(f"• {item}")
             with col_opciones:
+                # El componente lee directamente de session_state (el cual está sincronizado con la URL)
                 opcion = st.radio(
                     label=item,
                     options=["No", "Sí"],
-                    key=key_radio,
+                    key=key_id,
                     horizontal=True,
                     label_visibility="collapsed"
                 )
+                
+                # Sincronizar dinámicamente cualquier cambio de clic con la barra de navegación (URL Params)
+                st.query_params[key_id] = opcion
+                
                 if opcion == "Sí":
                     subtotal_seccion += 1
                     
-        # Control de subtotales por bloque
+        # Control estricto de subtotales por bloque según rúbrica madre
         puntos_finales_seccion = min(subtotal_seccion, datos["max"])
         puntos_totales_logrados += puntos_finales_seccion
         
