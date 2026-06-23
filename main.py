@@ -5,7 +5,6 @@ import os
 st.set_page_config(page_title="Repaso de Semiología GRUNECO", page_icon="🧠", layout="centered")
 
 # --- SECCIÓN DE INTRODUCCIÓN Y BIENVENIDA ---
-# Mostrar logo si el archivo existe en la ruta especificada
 logo_path = "/workspaces/semio_neuro/GRUNECO_CPT_T.png"
 if os.path.exists(logo_path):
     st.image(logo_path, width=250)
@@ -20,8 +19,6 @@ st.markdown(
     "[gruneco.com.co](https://gruneco.com.co)"
 )
 st.markdown("---")
-st.markdown("### 📝 Autoevaluación del Examen Neurológico")
-st.write("Selecciona **Sí** o **No** para calificar cada uno de los ítems literales del documento madre:")
 
 # Estructura monolítica y literal de la rúbrica
 DATA_RUBRICA = {
@@ -112,7 +109,7 @@ DATA_RUBRICA = {
             "El desplazamiento del indicador es adecuado (Se desplaza en forma de H o en forma de asterísco)",
             "Evalua ambos ojos al mismo tiempo (movimientos conjugados)",
             "Evalua todos los movimientos en cada uno de los ojos (Sup - Inf - Lat - Med - Obl Sup - Obl Inf - Conj)",
-            "Describe adecuadamente los músculos y nervios implicados en cada uno de los diferentes movimientos",
+            "Describe adecuadamente los músculos and nervios implicados en cada uno de los diferentes movimientos",
             "Evalua la acomodación / convergencia"
         ]
     },
@@ -437,7 +434,7 @@ DATA_RUBRICA = {
         "items": [
             "Glabelar / Succión / Palmomentoniano (Marinesco) / Hoffman (Lecho Ungueal) / Presión palmar / Reflejo cutáneo plantar (Signo de Babinsky)",
             "En glabelar golpea la glabela repetidamente y evalúa si es agotable o no",
-            "En succión estimula labio superior and lo reconoce como Signos de liberación frontal",
+            "En succión estimula labio superior y lo reconoce como Signos de liberación frontal",
             "En palmomentoniano Estimula la palma (puede ser con la punta del martillo)",
             "En hoffman Golpea adecuadamente la uña",
             "En presión palmar Golpea borde cubital o palmar",
@@ -550,6 +547,19 @@ DATA_RUBRICA = {
     }
 }
 
+# --- FUNCIÓN DE RESETEO UTILIZANDO SESSION STATE ---
+def reiniciar_prueba():
+    for key in st.session_state.keys():
+        if key.startswith("radio_"):
+            st.session_state[key] = "No"
+
+# Botón flotante o superior para limpiar el progreso convenientemente
+st.markdown("### 🔄 Control de Progreso")
+if st.button("🗑️ Eliminar progreso / Resetear prueba", on_click=reiniciar_prueba):
+    st.info("La prueba ha sido reiniciada con éxito. Todos los valores volvieron a 'No'.")
+
+st.markdown("---")
+
 puntos_totales_maximos = sum(bloque["max"] for bloque in DATA_RUBRICA.values())
 puntos_totales_logrados = 0
 
@@ -561,22 +571,26 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
         
         for item in datos["items"]:
             col_texto, col_opciones = st.columns([0.75, 0.25])
+            key_radio = f"radio_{titulo_seccion}_{item}"
+            
+            # Inicializar en session_state si no existe para evitar desfases al reiniciar
+            if key_radio not in st.session_state:
+                st.session_state[key_radio] = "No"
+                
             with col_texto:
-                # Se eliminó la etiqueta de texto fija, mostrando el ítem directamente como viñeta limpia
                 st.markdown(f"• {item}")
             with col_opciones:
                 opcion = st.radio(
                     label=item,
                     options=["No", "Sí"],
-                    index=0,
+                    key=key_radio,
                     horizontal=True,
-                    label_visibility="collapsed",
-                    key=f"radio_{titulo_seccion}_{item}"
+                    label_visibility="collapsed"
                 )
                 if opcion == "Sí":
                     subtotal_seccion += 1
                     
-        # Control estricto de subtotales
+        # Control estricto de subtotales por bloque
         puntos_finales_seccion = min(subtotal_seccion, datos["max"])
         puntos_totales_logrados += puntos_finales_seccion
         
