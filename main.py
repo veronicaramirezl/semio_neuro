@@ -1,8 +1,12 @@
 import streamlit as st
 import os
+from streamlit_local_storage import LocalStorage
 
 # Configuración de página estricta
 st.set_page_config(page_title="Repaso de Semiología GRUNECO", page_icon="🧠", layout="centered")
+
+# Inicializar el almacenamiento local en el navegador del usuario
+local_storage = LocalStorage()
 
 # --- SECCIÓN DE INTRODUCCIÓN Y BIENVENIDA ---
 logo_path = "/workspaces/semio_neuro/GRUNECO_CPT_T.png"
@@ -109,7 +113,7 @@ DATA_RUBRICA = {
             "El desplazamiento del indicador es adecuado (Se desplaza en forma de H o en forma de asterísco)",
             "Evalua ambos ojos al mismo tiempo (movimientos conjugados)",
             "Evalua todos los movimientos en cada uno de los ojos (Sup - Inf - Lat - Med - Obl Sup - Obl Inf - Conj)",
-            "Describe adecuadamente los músculos and nervios implicados en cada uno de los diferentes movimientos",
+            "Describe adecuadamente los músculos y nervios implicados en cada uno de los diferentes movimientos",
             "Evalua la acomodación / convergencia"
         ]
     },
@@ -521,7 +525,7 @@ DATA_RUBRICA = {
         "items": [
             "Marcha en punta de pie",
             "Da la indicación al paciente (Punta de pie)",
-            "Evalúa de forma bilateral e identifica que se utiliza para evaluar S1 y funcionales",
+            "Evalúa de forma bilateral e identifica que se utiliza para evaluar S1 and funcionales",
             "Garantiza la seguridad del paciente (Punta de pie)"
         ]
     },
@@ -547,23 +551,24 @@ DATA_RUBRICA = {
     }
 }
 
-# --- FUNCIÓN DE RESETEO UTILIZANDO SESSION STATE ---
+# --- LÓGICA DE RESETEO CON LOCAL STORAGE ---
 def reiniciar_prueba():
-    for key in st.session_state.keys():
-        if key.startswith("radio_"):
-            st.session_state[key] = "No"
+    for titulo_seccion, datos in DATA_RUBRICA.items():
+        for item in datos["items"]:
+            key_radio = f"radio_{titulo_seccion}_{item}"
+            st.session_state[key_radio] = "No"
+            local_storage.setItem(key_radio, "No")
 
-# Botón flotante o superior para limpiar el progreso convenientemente
 st.markdown("### 🔄 Control de Progreso")
 if st.button("🗑️ Eliminar progreso / Resetear prueba", on_click=reiniciar_prueba):
-    st.info("La prueba ha sido reiniciada con éxito. Todos los valores volvieron a 'No'.")
+    st.info("La prueba ha sido reiniciada. Se borró el progreso almacenado en el dispositivo.")
 
 st.markdown("---")
 
 puntos_totales_maximos = sum(bloque["max"] for bloque in DATA_RUBRICA.values())
 puntos_totales_logrados = 0
 
-# Renderizar secciones con bullet points interactivos limpios
+# Renderizar secciones con persistencia local
 for titulo_seccion, datos in DATA_RUBRICA.items():
     with st.container():
         st.subheader(f"📋 {titulo_seccion}")
@@ -573,9 +578,14 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
             col_texto, col_opciones = st.columns([0.75, 0.25])
             key_radio = f"radio_{titulo_seccion}_{item}"
             
-            # Inicializar en session_state si no existe para evitar desfases al reiniciar
+            # Intentar recuperar el valor histórico guardado en el navegador del usuario
+            valor_guardado = local_storage.getItem(key_radio)
+            if valor_guardado is None:
+                valor_guardado = "No"
+            
+            # Inicializar session_state con lo que se recuperó de la cookie/local_storage
             if key_radio not in st.session_state:
-                st.session_state[key_radio] = "No"
+                st.session_state[key_radio] = valor_guardado
                 
             with col_texto:
                 st.markdown(f"• {item}")
@@ -587,10 +597,15 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
                     horizontal=True,
                     label_visibility="collapsed"
                 )
+                
+                # Si el usuario cambia la opción, guardarla inmediatamente en el almacenamiento local
+                if opcion != valor_guardado:
+                    local_storage.setItem(key_radio, opcion)
+                    
                 if opcion == "Sí":
                     subtotal_seccion += 1
                     
-        # Control estricto de subtotales por bloque
+        # Control de subtotales por bloque
         puntos_finales_seccion = min(subtotal_seccion, datos["max"])
         puntos_totales_logrados += puntos_finales_seccion
         
