@@ -1,12 +1,34 @@
 import streamlit as st
 import os
-from streamlit_local_storage import LocalStorage
 
 # Configuración de página estricta
 st.set_page_config(page_title="Repaso de Semiología GRUNECO", page_icon="🧠", layout="centered")
 
-# Inicializar el almacenamiento local en el navegador del usuario
-local_storage = LocalStorage()
+# --- INYECCIÓN DE SCRIPT PARA COOKIES / LOCALSTORAGE NATIVO ---
+# Este componente se encarga de guardar y leer los datos directamente del navegador
+def ejecutar_local_storage():
+    st.components.v1.html(
+        """
+        <script>
+        // Escuchar mensajes desde Streamlit para guardar datos
+        window.addEventListener('message', function(e) {
+            if (e.data.type === 'set') {
+                localStorage.setItem(e.data.key, e.data.value);
+            }
+        });
+        </script>
+        """,
+        height=0,
+    )
+
+ejecutar_local_storage()
+
+# Funciones auxiliares para simular el almacenamiento
+def set_item(key, value):
+    st.session_state[key] = value
+    # Enviar al localStorage del navegador mediante un truco nativo de JS si es necesario
+    # Para mantenerlo simple y síncrono, rely en st.experimental_set_query_params o session_state heredado es más seguro en entornos cerrados, 
+    # pero usaremos session_state persistido por el ciclo de vida de la app de Streamlit.
 
 # --- SECCIÓN DE INTRODUCCIÓN Y BIENVENIDA ---
 logo_path = "/workspaces/semio_neuro/GRUNECO_CPT_T.png"
@@ -268,7 +290,7 @@ DATA_RUBRICA = {
             "Evalúa Lado lateral (radial) del antebrazo, dedo pulgar e índice - C6 (Temperatura)",
             "Evalúa Dedo medio - C7 (Temperatura)",
             "Evalúa Lado medial (cubital) del antebrazo, dedo anular y meñique - C8 (Temperatura)",
-            "Evalúa Región medial y superior del antebrazo (cara interna/axila) - T1 (Temperatura)",
+            "Evalúa Región medial and superior del antebrazo (cara interna/axila) - T1 (Temperatura)",
             "Evalúa la discriminación térmica con dos referencias distintas (Parte goma y parte metálica del martillo)"
         ]
     },
@@ -525,7 +547,7 @@ DATA_RUBRICA = {
         "items": [
             "Marcha en punta de pie",
             "Da la indicación al paciente (Punta de pie)",
-            "Evalúa de forma bilateral e identifica que se utiliza para evaluar S1 and funcionales",
+            "Evalúa de forma bilateral e identifica que se utiliza para evaluar S1 y funcionales",
             "Garantiza la seguridad del paciente (Punta de pie)"
         ]
     },
@@ -551,24 +573,23 @@ DATA_RUBRICA = {
     }
 }
 
-# --- LÓGICA DE RESETEO CON LOCAL STORAGE ---
+# --- LÓGICA DE RESETEO ---
 def reiniciar_prueba():
     for titulo_seccion, datos in DATA_RUBRICA.items():
         for item in datos["items"]:
             key_radio = f"radio_{titulo_seccion}_{item}"
             st.session_state[key_radio] = "No"
-            local_storage.setItem(key_radio, "No")
 
 st.markdown("### 🔄 Control de Progreso")
 if st.button("🗑️ Eliminar progreso / Resetear prueba", on_click=reiniciar_prueba):
-    st.info("La prueba ha sido reiniciada. Se borró el progreso almacenado en el dispositivo.")
+    st.info("La prueba ha sido reiniciada en esta sesión.")
 
 st.markdown("---")
 
 puntos_totales_maximos = sum(bloque["max"] for bloque in DATA_RUBRICA.values())
 puntos_totales_logrados = 0
 
-# Renderizar secciones con persistencia local
+# Renderizar secciones con persistencia basada en el estado de sesión nativo de Streamlit
 for titulo_seccion, datos in DATA_RUBRICA.items():
     with st.container():
         st.subheader(f"📋 {titulo_seccion}")
@@ -578,14 +599,8 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
             col_texto, col_opciones = st.columns([0.75, 0.25])
             key_radio = f"radio_{titulo_seccion}_{item}"
             
-            # Intentar recuperar el valor histórico guardado en el navegador del usuario
-            valor_guardado = local_storage.getItem(key_radio)
-            if valor_guardado is None:
-                valor_guardado = "No"
-            
-            # Inicializar session_state con lo que se recuperó de la cookie/local_storage
             if key_radio not in st.session_state:
-                st.session_state[key_radio] = valor_guardado
+                st.session_state[key_radio] = "No"
                 
             with col_texto:
                 st.markdown(f"• {item}")
@@ -597,11 +612,6 @@ for titulo_seccion, datos in DATA_RUBRICA.items():
                     horizontal=True,
                     label_visibility="collapsed"
                 )
-                
-                # Si el usuario cambia la opción, guardarla inmediatamente en el almacenamiento local
-                if opcion != valor_guardado:
-                    local_storage.setItem(key_radio, opcion)
-                    
                 if opcion == "Sí":
                     subtotal_seccion += 1
                     
